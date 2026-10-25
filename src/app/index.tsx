@@ -2,6 +2,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useEffect, useState } from 'react';
 import { Alert, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../supabase';
+import LoginScreen from '../components/LoginScreen';
+;
 
 const TEMAS = {
   morado: { nombre: 'Morado', primario: '#8b5cf6', fondoHeader: '#7c3aed', fondoApp: '#0f172a', cardBg: '#1e293b', inputBg: '#0f172a', bordeColor: '#4c1d95' },
@@ -52,6 +54,30 @@ const AnilloProgreso = ({ porcentaje, colorPrimario, colorFondo, colorInterior, 
 };
 
 export default function HomeScreen() {
+  const [sesion, setSesion] = useState<any>(null);
+  const [cargandoSesion, setCargandoSesion] = useState(true);
+
+  useEffect(() => {
+    // 1. Obtener sesión activa al abrir
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSesion(session);
+      setCargandoSesion(false);
+      if (session) {
+        obtenerTransacciones();
+      }
+    });
+
+    // 2. Escuchar cambios de estado de autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSesion(session);
+      if (session) {
+        obtenerTransacciones();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const [transacciones, setTransacciones] = useState<any[]>([]);
   
   const [concepto, setConcepto] = useState('');
@@ -88,14 +114,10 @@ export default function HomeScreen() {
     { nombre: 'Otros', emoji: '✨' }
   ];
 
-  useEffect(() => {
-    obtenerTransacciones();
-  }, []);
-
-  const obtenerTransacciones = async () => {
-    const { data } = await supabase.from('transacciones').select('*').order('created_at', { ascending: false });
-    setTransacciones(data || []);
-  };
+async function obtenerTransacciones() {
+  const { data } = await supabase.from('transacciones').select('*').order('created_at', { ascending: false });
+  setTransacciones(data || []);
+}
 
   const ahorrosList = transacciones.filter(t => t.categoria && t.categoria.startsWith('🐷'));
   const transaccionesNormales = transacciones.filter(t => !t.categoria || !t.categoria.startsWith('🐷'));
@@ -252,7 +274,24 @@ export default function HomeScreen() {
       ]
     );
   };
+  const retirarDeAhorrosMain = async (montoRetiro: number) => {
+    if (isNaN(montoRetiro) || montoRetiro <= 0) {
+      Alert.alert('Monto inválido', 'Ingresa una cantidad válida a retirar.');
+      return;
+    }
 
+    const { data, error } = await supabase.rpc('retirar_de_ahorros_main', {
+      p_monto: montoRetiro
+    });
+
+    if (error) {
+      Alert.alert('Error al retirar', error.message);
+      return;
+    }
+
+    Alert.alert('¡Retiro Exitoso! 🏦', `Se han devuelto S/ ${montoRetiro} a tu balance general.`);
+    obtenerTransacciones();
+  };
   const formatearMonto = (valor: number) => {
     if (isNaN(valor)) return '0';
     return new Intl.NumberFormat('en-US', { minimumFractionDigits: valor % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 }).format(valor);
@@ -282,6 +321,34 @@ export default function HomeScreen() {
   const ahorrosConSeccion = ahorrosList.map(i => ({ ...i, seccionFecha: obtenerEtiquetaFecha(i.created_at) }));
   
   const porcentajeAhorro = metaAhorro > 0 ? Math.min(Math.round((totalAhorrado / metaAhorro) * 100), 100) : 0;
+  const cerrarSesion = async () => {
+    Alert.alert(
+      'Cerrar Sesión',
+      '¿Estás seguro de que deseas salir de tu cuenta?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Sí, salir', 
+          style: 'destructive', 
+          onPress: async () => {
+            await supabase.auth.signOut();
+          } 
+        }
+      ]
+    );
+  };
+
+  if (cargandoSesion) {
+    return (
+      <View style={[styles.container, { backgroundColor: tema.fondoApp, justifyContent: 'center' }]}>
+        <Text style={{ color: '#ffffff', textAlign: 'center' }}>Cargando sesión...</Text>
+      </View>
+    );
+  }
+
+  if (!sesion) {
+    return <LoginScreen onLoginSuccess={obtenerTransacciones} />;
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: tema.fondoApp }]}>
@@ -291,7 +358,13 @@ export default function HomeScreen() {
       {tabActiva === 0 && (
         <View style={styles.tabContent}>
           <View style={[styles.header, { backgroundColor: tema.fondoHeader }]}>
-            <Text style={styles.subTitle}>Balance actual</Text>
+            <View style={styles.headerTopRow}>
+              <Text style={styles.subTitle}>Balance actual</Text>
+              <TouchableOpacity style={[styles.logoutButton, { flexDirection: 'row', alignItems: 'center', gap: 4 }]} onPress={cerrarSesion}>
+                <Text style={{ fontSize: 12 }}>🚪</Text>
+                <Text style={styles.logoutText}>Salir</Text>
+              </TouchableOpacity>
+            </View>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceAmount}>{formatearMonto(totalBalance)}</Text>
               <Text style={styles.currencyText}>PEN</Text>
@@ -318,8 +391,8 @@ export default function HomeScreen() {
               </View>
 
               {mostrarCalendario && (
-                <DateTimePicker value={fechaSeleccionada || new Date()} mode="date" display="default" onChange={(e, d) => { setMostrarCalendario(false); if(d){ setFechaSeleccionada(d); setFiltrandoPorFecha(true);}}} />
-              )}
+              <DateTimePicker value={fechaSeleccionada || new Date()} mode="date" display="default" onChange={(e, d) => { setMostrarCalendario(false); if(d){ setFechaSeleccionada(d); setFiltrandoPorFecha(true);}}} />
+              ) }
 
               {transaccionesConSeccion.length === 0 ? (
                 <View style={[styles.emptyContainerCard, { backgroundColor: tema.cardBg }]}>
@@ -556,6 +629,9 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerTopRow: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', },
+logoutButton: {backgroundColor: 'rgba(255, 255, 255, 0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, },
+logoutText: { color: '#ffffff', fontSize: 12, fontWeight: 'bold', },
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 45 },
   tabContent: { flex: 1, paddingBottom: 80 },
   header: { borderRadius: 20, padding: 22, alignItems: 'flex-start', elevation: 6 },
