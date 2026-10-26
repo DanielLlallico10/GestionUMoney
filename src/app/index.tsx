@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react';
 import { Alert, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../supabase';
 import LoginScreen from '../components/LoginScreen';
+import ResumenStats from './resumen';
 ;
 
+// Colores para la app, con sus variantes de fondo, header, card y borde
 const TEMAS = {
   morado: { nombre: 'Morado', primario: '#8b5cf6', fondoHeader: '#7c3aed', fondoApp: '#0f172a', cardBg: '#1e293b', inputBg: '#0f172a', bordeColor: '#4c1d95' },
   verde: { nombre: 'Verde', primario: '#10b981', fondoHeader: '#059669', fondoApp: '#064e3b', cardBg: '#065f46', inputBg: '#022c22', bordeColor: '#047857' },
@@ -12,7 +14,7 @@ const TEMAS = {
   amarillo: { nombre: 'Amarillo', primario: '#f59e0b', fondoHeader: '#d97706', fondoApp: '#1c1917', cardBg: '#292524', inputBg: '#1c1917', bordeColor: '#78350f' }
 };
 
-// COMPONENTE NUEVO: Anillo de progreso 100% fluido y matemático
+// Barra de carga circular personalizada para mostrar el progreso de ahorro
 const AnilloProgreso = ({ porcentaje, colorPrimario, colorFondo, colorInterior, children }: any) => {
   const size = 220;
   const stroke = 8;
@@ -21,7 +23,6 @@ const AnilloProgreso = ({ porcentaje, colorPrimario, colorFondo, colorInterior, 
   
   const rotacionDerecha = Math.min(grados, 180);
   const rotacionIzquierda = Math.max(grados - 180, 0);
-
   return (
     <View style={{ width: size, height: size, borderRadius: radius, backgroundColor: colorFondo, justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
       
@@ -53,10 +54,12 @@ const AnilloProgreso = ({ porcentaje, colorPrimario, colorFondo, colorInterior, 
   );
 };
 
+// Pantalla principal de la app, con navegación entre Home, Resumen y Ahorros
 export default function HomeScreen() {
   const [sesion, setSesion] = useState<any>(null);
   const [cargandoSesion, setCargandoSesion] = useState(true);
 
+// Estado para manejar la lista de transacciones obtenidas desde Supabase
   useEffect(() => {
     // 1. Obtener sesión activa al abrir
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -91,7 +94,7 @@ export default function HomeScreen() {
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const [filtrandoPorFecha, setFiltrandoPorFecha] = useState(false);
 
-  // Navegación inferior (0: Home, 2: Ahorros)
+  // Navegación inferior entre Home, Resumen y Ahorros
   const [tabActiva, setTabActiva] = useState(0);
 
   // Modal central tipo globo para el botón (+)
@@ -130,6 +133,7 @@ async function obtenerTransacciones() {
   const totalAhorrado = ahorrosList.reduce((acc, curr) => acc + (curr.monto || 0), 0);
   const totalBalance = parseFloat((calculoBruto - totalAhorrado).toFixed(2)) === 0 ? 0 : parseFloat((calculoBruto - totalAhorrado).toFixed(2));
 
+  // Función para agregar una transacción (gasto o ingreso) con validaciones y guardado en Supabase
   const agregarTransaccion = async (tipo: 'gasto' | 'ingreso') => {
     if (!concepto || !monto) {
       Alert.alert('Campos incompletos', 'Por favor llena el concepto y el monto.');
@@ -172,6 +176,7 @@ async function obtenerTransacciones() {
     }
   };
 
+  // Función para depositar dinero al chanchito de ahorro, con validaciones y llamada a función SQL en Supabase
   const depositarAlChanchito = async () => {
     if (!monto) {
       Alert.alert('Monto incompleto', 'Ingresa cuánto deseas ahorrar.');
@@ -215,6 +220,8 @@ async function obtenerTransacciones() {
     }
   };
 
+
+  // Función para eliminar una transacción, con confirmación y manejo de errores
   const eliminarTransaccion = (item: any) => {
     const esIngreso = item.tipo === 'ingreso';
     Alert.alert(
@@ -238,6 +245,7 @@ async function obtenerTransacciones() {
     );
   };
 
+  // Función para eliminar un depósito de ahorro, con confirmación y manejo de errores
   const eliminarDepositoAhorro = async (item: any) => {
     Alert.alert(
       'Retirar del Chanchito',
@@ -255,6 +263,7 @@ async function obtenerTransacciones() {
     );
   };
 
+  // Función para disolver todo el chanchito de ahorro, con confirmación y manejo de errores
   const disolverChanchito = () => {
     if (ahorrosList.length === 0) return;
     Alert.alert(
@@ -274,6 +283,8 @@ async function obtenerTransacciones() {
       ]
     );
   };
+
+  // Función para retirar dinero del chanchito de ahorro principal, con validaciones y llamada a función SQL en Supabase
   const retirarDeAhorrosMain = async (montoRetiro: number) => {
     if (isNaN(montoRetiro) || montoRetiro <= 0) {
       Alert.alert('Monto inválido', 'Ingresa una cantidad válida a retirar.');
@@ -292,11 +303,14 @@ async function obtenerTransacciones() {
     Alert.alert('¡Retiro Exitoso! 🏦', `Se han devuelto S/ ${montoRetiro} a tu balance general.`);
     obtenerTransacciones();
   };
+
+  // Función para formatear montos numéricos a formato de moneda con dos decimales
   const formatearMonto = (valor: number) => {
     if (isNaN(valor)) return '0';
     return new Intl.NumberFormat('en-US', { minimumFractionDigits: valor % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 }).format(valor);
   };
 
+  // Función para obtener una etiqueta de fecha legible según la fecha ISO proporcionada
   const obtenerEtiquetaFecha = (fechaIso: string) => {
     if (!fechaIso) return 'Anterior';
     const fechaTransaccion = new Date(fechaIso);
@@ -310,6 +324,7 @@ async function obtenerTransacciones() {
     return fechaTransaccion.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).toUpperCase();
   };
 
+  // Filtra las transacciones normales según la fecha seleccionada si se está filtrando
   const transaccionesFiltradas = filtrandoPorFecha && fechaSeleccionada
     ? transaccionesNormales.filter(i => {
         const d = new Date(i.created_at);
@@ -338,6 +353,7 @@ async function obtenerTransacciones() {
     );
   };
 
+  //
   if (cargandoSesion) {
     return (
       <View style={[styles.container, { backgroundColor: tema.fondoApp, justifyContent: 'center' }]}>
@@ -349,10 +365,10 @@ async function obtenerTransacciones() {
   if (!sesion) {
     return <LoginScreen onLoginSuccess={obtenerTransacciones} />;
   }
-
+// Si hay sesión activa, mostrar la pantalla principal de la app
   return (
     <View style={[styles.container, { backgroundColor: tema.fondoApp }]}>
-      <StatusBar barStyle="light-content" backgroundColor={tema.fondoApp} />
+      <StatusBar barStyle="light-content" />
       
       {/* SECCIÓN 1: HOME (CUENTAS) */}
       {tabActiva === 0 && (
@@ -442,6 +458,11 @@ async function obtenerTransacciones() {
         </View>
       )}
 
+      {/* 📊 TAB 1: RESUMEN Y ESTADÍSTICAS */}
+      {tabActiva === 1 && (
+        <ResumenStats transacciones={transacciones} tema={tema} />
+      )}
+      
       {/* SECCIÓN 3: AHORROS */}
       {tabActiva === 2 && (
         <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
@@ -512,27 +533,6 @@ async function obtenerTransacciones() {
           </View>
         </ScrollView>
       )}
-
-      {/* BARRA DE NAVEGACIÓN INFERIOR */}
-      <View style={[styles.bottomNav, { backgroundColor: tema.cardBg, borderColor: tema.bordeColor }]}>
-        <TouchableOpacity style={styles.navItem} onPress={() => setTabActiva(0)} onLongPress={() => setModalColoresVisible(true)}>
-          <Text style={[styles.navIcon, tabActiva === 0 && { color: tema.primario }]}>🏠</Text>
-          <Text style={[styles.navText, tabActiva === 0 && { color: tema.primario }]}>Home</Text>
-        </TouchableOpacity>
-
-        {/* BOTÓN CENTRAL (+) */}
-        <TouchableOpacity 
-          style={[styles.navPlusButton, { backgroundColor: tema.primario }]} 
-          onPress={() => setModalMasVisible(true)}
-        >
-          <Text style={styles.navPlusText}>＋</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => setTabActiva(2)}>
-          <Text style={[styles.navIcon, tabActiva === 2 && { color: tema.primario }]}>🐷</Text>
-          <Text style={[styles.navText, tabActiva === 2 && { color: tema.primario }]}>Ahorros</Text>
-        </TouchableOpacity>
-      </View>
 
       {/* MODAL GLOBO FLOTANTE INDEPENDIENTE */}
       <Modal animationType="slide" transparent={true} visible={modalMasVisible} onRequestClose={() => setModalMasVisible(false)}>
@@ -624,14 +624,66 @@ async function obtenerTransacciones() {
           </View>
         </View>
       </Modal>
+
+      {/* 3. NUEVO BOTÓN FLOTANTE (+) */}
+        {tabActiva !== 1 && (
+        <TouchableOpacity 
+          style={[styles.botonFlotante, { backgroundColor: tema.primario }]} 
+          onPress={() => setModalMasVisible(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.textoBotonFlotante}>+</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* 4. NUEVA BARRA DE NAVEGACIÓN (3 PESTAÑAS) */}
+      <View style={[styles.barraNavegacion, { backgroundColor: tema.cardBg || '#1e293b', borderTopColor: tema.bordeColor || '#334155' }]}>
+        <TouchableOpacity 
+          style={styles.tabBoton} 
+          onPress={() => setTabActiva(0)}
+          onLongPress={() => setModalColoresVisible(true)}
+          delayLongPress={500}
+        >
+          <Text style={styles.tabIcono}>🏠</Text>
+          <Text style={[styles.tabTexto, { color: tabActiva === 0 ? tema.primario : '#94a3b8', fontWeight: tabActiva === 0 ? 'bold' : 'normal' }]}>
+            Inicio
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.tabBoton} 
+          onPress={() => setTabActiva(1)}
+        >
+          <Text style={styles.tabIcono}>📊</Text>
+          <Text style={[styles.tabTexto, { color: tabActiva === 1 ? tema.primario : '#94a3b8', fontWeight: tabActiva === 1 ? 'bold' : 'normal' }]}>
+            Resumen
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.tabBoton} 
+          onPress={() => setTabActiva(2)}
+        >
+          <Text style={styles.tabIcono}>🐷</Text>
+          <Text style={[styles.tabTexto, { color: tabActiva === 2 ? tema.primario : '#94a3b8', fontWeight: tabActiva === 2 ? 'bold' : 'normal' }]}>
+            Ahorros
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  botonFlotante: {position: 'absolute',bottom: 100,right: 20,width: 62,height: 62,borderRadius: 31,justifyContent: 'center',alignItems: 'center',elevation: 6,shadowColor: '#000',shadowOffset: { width: 0, height: 3 },shadowOpacity: 0.3,shadowRadius: 4,zIndex: 10,},
+  textoBotonFlotante: { fontSize: 38, color: '#ffffff', fontWeight: 'bold',marginTop: -4,},
+  barraNavegacion: {borderRadius: 25,marginBottom: 20,flexDirection: 'row',justifyContent: 'space-around',alignItems: 'center',backgroundColor: '#1e293b',height: 70,borderTopWidth: 1,borderTopColor: '#334155',paddingBottom: 10,},
+  tabBoton: { alignItems: 'center', justifyContent: 'center', flex: 1 },
+  tabIcono: { fontSize: 24, marginBottom: 2 },
+  tabTexto: { color: '#94a3b8', fontSize: 10 },
   headerTopRow: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', },
-logoutButton: {backgroundColor: 'rgba(255, 255, 255, 0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, },
-logoutText: { color: '#ffffff', fontSize: 12, fontWeight: 'bold', },
+  logoutButton: {backgroundColor: 'rgba(255, 255, 255, 0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, },
+  logoutText: { color: '#ffffff', fontSize: 12, fontWeight: 'bold', },
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 45 },
   tabContent: { flex: 1, paddingBottom: 80 },
   header: { borderRadius: 20, padding: 22, alignItems: 'flex-start', elevation: 6 },
