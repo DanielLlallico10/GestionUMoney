@@ -4,7 +4,7 @@ import { Alert, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput
 import { supabase } from '../../supabase';
 import LoginScreen from '../components/LoginScreen';
 import ResumenStats from './resumen';
-;
+import { useDailyMovementReminder } from '../hooks/use-daily-movement-reminder';
 
 // Colores para la app, con sus variantes de fondo, header, card y borde
 const TEMAS = {
@@ -59,6 +59,8 @@ export default function HomeScreen() {
   const [sesion, setSesion] = useState<any>(null);
   const [cargandoSesion, setCargandoSesion] = useState(true);
 
+  useDailyMovementReminder(Boolean(sesion));
+
 // Estado para manejar la lista de transacciones obtenidas desde Supabase
   useEffect(() => {
     // 1. Obtener sesión activa al abrir
@@ -86,7 +88,7 @@ export default function HomeScreen() {
   const [concepto, setConcepto] = useState('');
   const [monto, setMonto] = useState('');
   
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('Transporte');
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('Antojitos');
   const [categoriaPersonalizada, setCategoriaPersonalizada] = useState('');
   const [emojiPersonalizado, setEmojiPersonalizado] = useState('📌');
 
@@ -111,9 +113,9 @@ export default function HomeScreen() {
   const tema = TEMAS[temaActual];
 
   const categoriasDisponibles = [
-    { nombre: 'Transporte', emoji: '🚗' },
+    { nombre: 'Antojitos', emoji: '🍫' },
     { nombre: 'Pasaje', emoji: '🚌' },
-    { nombre: 'Comida', emoji: '🍔' },
+    { nombre: 'Comida', emoji: '🍽️' },
     { nombre: 'Otros', emoji: '✨' }
   ];
 
@@ -311,9 +313,9 @@ async function obtenerTransacciones() {
   };
 
   // Función para obtener una etiqueta de fecha legible según la fecha ISO proporcionada
-  const obtenerEtiquetaFecha = (fechaIso: string) => {
-    if (!fechaIso) return 'Anterior';
-    const fechaTransaccion = new Date(fechaIso);
+  const obtenerEtiquetaFecha = (fecha: string | Date) => {
+    if (!fecha) return 'Anterior';
+    const fechaTransaccion = fecha instanceof Date ? new Date(fecha.getTime()) : new Date(fecha);
     const hoy = new Date();
     fechaTransaccion.setHours(0,0,0,0); hoy.setHours(0,0,0,0);
     const dif = Math.round((hoy.getTime() - fechaTransaccion.getTime()) / (1000 * 60 * 60 * 24));
@@ -372,8 +374,8 @@ async function obtenerTransacciones() {
       
       {/* SECCIÓN 1: HOME (CUENTAS) */}
       {tabActiva === 0 && (
-        <View style={styles.tabContent}>
-          <View style={[styles.header, { backgroundColor: tema.fondoHeader }]}>
+        <View style={[styles.tabContent, { paddingBottom: 5}]}>
+          <View style={[styles.header, { backgroundColor: tema.fondoHeader, marginBottom: 8 }]}>
             <View style={styles.headerTopRow}>
               <Text style={styles.subTitle}>Balance actual</Text>
               <TouchableOpacity style={[styles.logoutButton, { flexDirection: 'row', alignItems: 'center', gap: 4 }]} onPress={cerrarSesion}>
@@ -387,11 +389,11 @@ async function obtenerTransacciones() {
             </View>
           </View>
 
-          <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
             <View style={styles.listContainer}>
               <View style={styles.listHeaderRow}>
                 <Text style={styles.sectionTitle}>
-                  {filtrandoPorFecha ? `Registros del ${fechaSeleccionada?.toLocaleDateString()}` : 'Historial Reciente'}
+                  {filtrandoPorFecha && fechaSeleccionada ? `Registros de ${obtenerEtiquetaFecha(fechaSeleccionada)}` : 'Historial Reciente'}
                 </Text>
                 
                 <View style={styles.calendarButtonsRow}>
@@ -459,9 +461,9 @@ async function obtenerTransacciones() {
       )}
 
       {/* 📊 TAB 1: RESUMEN Y ESTADÍSTICAS */}
-      {tabActiva === 1 && (
+      <View style={{ flex: 1, display: tabActiva === 1 ? 'flex' : 'none' }}>
         <ResumenStats transacciones={transacciones} tema={tema} />
-      )}
+      </View>
       
       {/* SECCIÓN 3: AHORROS */}
       {tabActiva === 2 && (
